@@ -9,8 +9,13 @@ import (
 	"strconv"
 )
 
-const numRows int64 = 1000000000
-const numBytesIn2GB int64 = 2 * 1024 * 1024 * 1024
+const (
+	numRows    int64 = 1000000000
+	bufferSize int64 = 2 * 1024 * 1024 * 1024
+)
+
+var buffer = make([]byte, bufferSize)
+var bufferPtr int64 = 0
 
 type accumulator struct {
 	name  string
@@ -34,10 +39,8 @@ func main() {
 	var readTill int64 = 0
 	var name string
 	var temperature float64
-	buffer := make([]byte, numBytesIn2GB)
-	bufferPtr := int64(0)
 	for i := int64(0); i < numRows; i++ {
-		name, temperature, readTill = parseLine(inputFile, readTill, buffer, &bufferPtr)
+		name, temperature, readTill = parseLine(inputFile, readTill)
 		if readTill == 0 {
 			panic("could not read till new line")
 		}
@@ -91,29 +94,29 @@ func panicOnError(err error) {
 	}
 }
 
-func parseLine(file *os.File, offset int64, localBuffer []byte, localBufferPtr *int64) (name string, temperature float64, readTill int64) {
+func parseLine(file *os.File, offset int64) (name string, temperature float64, readTill int64) {
 	newLineAt := int64(-1)
 	semicolonAt := int64(-1)
-	for i := *localBufferPtr; i < numBytesIn2GB; i++ {
-		if semicolonAt == -1 && localBuffer[i] == ';' {
+	for i := bufferPtr; i < bufferSize; i++ {
+		if semicolonAt == -1 && buffer[i] == ';' {
 			semicolonAt = i
 		}
-		if localBuffer[i] == '\n' {
+		if buffer[i] == '\n' {
 			newLineAt = i
 			break
 		}
 	}
 
 	if newLineAt == -1 || semicolonAt == -1 {
-		_, err := file.ReadAt(localBuffer, offset)
+		_, err := file.ReadAt(buffer, offset)
 		if err != nil && err != io.EOF {
 			panicOnError(err)
 		}
-		*localBufferPtr = 0
-		return parseLine(file, offset, localBuffer, localBufferPtr)
+		bufferPtr = 0
+		return parseLine(file, offset)
 	}
 
-	nameB, temperatureB := localBuffer[*localBufferPtr:semicolonAt], localBuffer[semicolonAt+1:newLineAt]
+	nameB, temperatureB := buffer[bufferPtr:semicolonAt], buffer[semicolonAt+1:newLineAt]
 
 	name = string(nameB)
 
@@ -121,7 +124,7 @@ func parseLine(file *os.File, offset int64, localBuffer []byte, localBufferPtr *
 	panicOnError(err)
 
 	readTill = offset + int64(newLineAt) + 1
-	*localBufferPtr = newLineAt + 1
+	bufferPtr = newLineAt + 1
 
 	return
 }
