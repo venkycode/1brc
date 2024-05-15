@@ -10,6 +10,7 @@ import (
 )
 
 const numRows int64 = 1000000000
+const numBytesIn2GB int64 = 2 * 1024 * 1024 * 1024
 
 type accumulator struct {
 	name  string
@@ -33,8 +34,10 @@ func main() {
 	var readTill int64 = 0
 	var name string
 	var temperature float64
+	buffer := make([]byte, numBytesIn2GB)
+	bufferPtr := int64(0)
 	for i := int64(0); i < numRows; i++ {
-		name, temperature, readTill = parseLine(inputFile, readTill)
+		name, temperature, readTill = parseLine(inputFile, readTill, buffer, &bufferPtr)
 		if readTill == 0 {
 			panic("could not read till new line")
 		}
@@ -88,37 +91,37 @@ func panicOnError(err error) {
 	}
 }
 
-func parseLine(file *os.File, offset int64) (name string, temperature float64, readTill int64) {
-	data := make([]byte, 100)
-	_, err := file.ReadAt(data, offset)
-	if err != nil && err != io.EOF {
-		panicOnError(err)
-	}
-
-	newLineAt := -1
-	semicolonAt := -1
-	for i, b := range data {
-		if b == ';' {
+func parseLine(file *os.File, offset int64, localBuffer []byte, localBufferPtr *int64) (name string, temperature float64, readTill int64) {
+	newLineAt := int64(-1)
+	semicolonAt := int64(-1)
+	for i := *localBufferPtr; i < numBytesIn2GB; i++ {
+		if semicolonAt == -1 && localBuffer[i] == ';' {
 			semicolonAt = i
 		}
-		if b == '\n' {
+		if localBuffer[i] == '\n' {
 			newLineAt = i
 			break
 		}
 	}
 
 	if newLineAt == -1 || semicolonAt == -1 {
-		panic(fmt.Errorf("could not find new line or semicolon, newLineAt: %d, semicolonAt: %d", newLineAt, semicolonAt))
+		_, err := file.ReadAt(localBuffer, offset)
+		if err != nil && err != io.EOF {
+			panicOnError(err)
+		}
+		*localBufferPtr = 0
+		return parseLine(file, offset, localBuffer, localBufferPtr)
 	}
 
-	nameB, temperatureB := data[:semicolonAt], data[semicolonAt+1:newLineAt]
+	nameB, temperatureB := localBuffer[*localBufferPtr:semicolonAt], localBuffer[semicolonAt+1:newLineAt]
 
 	name = string(nameB)
 
-	temperature, err = strconv.ParseFloat(string(temperatureB), 32) //TODO: parse manually
+	temperature, err := strconv.ParseFloat(string(temperatureB), 32) //TODO: parse manually
 	panicOnError(err)
 
 	readTill = offset + int64(newLineAt) + 1
+	*localBufferPtr = newLineAt + 1
 
 	return
 }
