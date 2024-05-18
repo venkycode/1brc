@@ -7,15 +7,8 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 )
-
-const (
-	numRows    int64 = 1000000000
-	bufferSize int64 = 2 * 1024 * 1024 * 1024
-)
-
-var buffer = make([]byte, bufferSize)
-var bufferPtr int64 = 0
 
 type accumulator struct {
 	name  string
@@ -25,54 +18,36 @@ type accumulator struct {
 	max   float64
 }
 
-var accumulators = make(map[string]*accumulator)
+var globalAccumulators = make(map[string]*accumulator)
 
 func main() {
 	input := flag.String("input", "", "Input file")
-	output := flag.String("output", "", "Output file")
 	flag.Parse()
 
 	inputFile, err := os.Open(*input)
 	panicOnError(err)
 	defer inputFile.Close()
 
-	var readTill int64 = 0
-	var name string
-	var temperature float64
-	for i := int64(0); i < numRows; i++ {
-		name, temperature, readTill = parseLine(inputFile, readTill)
-		if readTill == 0 {
-			panic("could not read till new line")
-		}
-		_, err := inputFile.Seek(readTill, 0)
-		panicOnError(err)
+	chunkedAccumulators := processFile(*input)
 
-		acc, ok := accumulators[name]
+	for chunkedAccumulator := range chunkedAccumulators {
+		acc, ok := globalAccumulators[chunkedAccumulator.name]
 		if !ok {
-			acc = &accumulator{name: name, sum: temperature, count: 1, min: temperature, max: temperature}
-			accumulators[name] = acc
+			globalAccumulators[chunkedAccumulator.name] = chunkedAccumulator
 		} else {
-			acc.sum += temperature
-			acc.count++
-			if temperature < acc.min {
-				acc.min = temperature
+			acc.sum += chunkedAccumulator.sum
+			acc.count += chunkedAccumulator.count
+			if chunkedAccumulator.min < acc.min {
+				acc.min = chunkedAccumulator.min
 			}
-			if temperature > acc.max {
-				acc.max = temperature
+			if chunkedAccumulator.max > acc.max {
+				acc.max = chunkedAccumulator.max
 			}
-		}
-
-		if i%1000000 == 0 {
-			fmt.Printf("Processed %d rows\n", i)
 		}
 	}
 
-	outputFile, err := os.Create(*output)
-	panicOnError(err)
-	defer outputFile.Close()
-
-	names := make([]string, 0, len(accumulators))
-	for name := range accumulators {
+	names := make([]string, 0, len(globalAccumulators))
+	for name := range globalAccumulators {
 		names = append(names, name)
 	}
 
@@ -80,12 +55,15 @@ func main() {
 		return names[i] < names[j]
 	})
 
+	outs := make([]string, 0, len(names))
 	for _, name := range names {
-		acc := accumulators[name]
-		_, err := outputFile.WriteString(name + ";" + strconv.FormatFloat(acc.sum/float64(acc.count), 'f', 1, 32) + ";" + strconv.FormatFloat(acc.min, 'f', 1, 32) + ";" + strconv.FormatFloat(acc.max, 'f', 1, 32) + "\n")
-		panicOnError(err)
+		acc := globalAccumulators[name]
+		out := (name + "=" + strconv.FormatFloat(acc.sum/float64(acc.count), 'f', 1, 32) + "/" + strconv.FormatFloat(acc.min, 'f', 1, 32) + "/" + strconv.FormatFloat(acc.max, 'f', 1, 32))
+		outs = append(outs, out)
+		println()
 	}
 
+	fmt.Printf("{%s}\n", strings.Join(outs, ", "))
 }
 
 func panicOnError(err error) {
@@ -94,37 +72,74 @@ func panicOnError(err error) {
 	}
 }
 
-func parseLine(file *os.File, offset int64) (name string, temperature float64, readTill int64) {
-	newLineAt := int64(-1)
+// todo pass struct to functions
+func parseLine(file *os.File, offset int64, buffer []byte, bufferPtr int64) (name string, temperature float64, newOffset int64, newBufferPtr int64) {
 	semicolonAt := int64(-1)
-	for i := bufferPtr; i < bufferSize; i++ {
-		if semicolonAt == -1 && buffer[i] == ';' {
-			semicolonAt = i
+	newBufferPtr = bufferPtr
+	newOffset = offset
+	for newBufferPtr < int64(len(buffer)) {
+		if buffer[newBufferPtr] == ';' {
+			semicolonAt = newBufferPtr
 		}
-		if buffer[i] == '\n' {
-			newLineAt = i
+		if buffer[newBufferPtr] == '\n' {
 			break
 		}
+		newBufferPtr++
+		newOffset++
 	}
 
-	if newLineAt == -1 || semicolonAt == -1 {
-		_, err := file.ReadAt(buffer, offset)
-		if err != nil && err != io.EOF {
-			panicOnError(err)
-		}
-		bufferPtr = 0
-		return parseLine(file, offset)
+	if newBufferPtr == int64(len(buffer)) || semicolonAt == -1 { // line is not complete
+		name, temperature, newOffset = readOneLineFrom(file, offset)
+		return
 	}
 
-	nameB, temperatureB := buffer[bufferPtr:semicolonAt], buffer[semicolonAt+1:newLineAt]
+	nameB, temperatureB := buffer[bufferPtr:semicolonAt], buffer[semicolonAt+1:newBufferPtr]
+	newBufferPtr++ // skip '\n'
+	newOffset++
 
 	name = string(nameB)
 
 	temperature, err := strconv.ParseFloat(string(temperatureB), 32) //TODO: parse manually
 	panicOnError(err)
 
-	readTill = offset + int64(newLineAt) + 1
-	bufferPtr = newLineAt + 1
+	return name, temperature, newOffset, newBufferPtr
+}
 
-	return
+func readOneLineFrom(file *os.File, offset int64) (name string, temperature float64, newOffset int64) {
+	buffer := make([]byte, 400)
+	_, err := file.ReadAt(buffer, offset)
+	if err != nil && err != io.EOF {
+		panicOnError(err)
+	}
+
+	name, temperature, newOffset, _ = parseLine(file, offset, buffer, 0)
+	return name, temperature, newOffset
+}
+
+func skipDirtyLine(file *os.File, offset int64, buffer []byte, bufferPtr int64) (newOffset int64, newBufferPtr int64) {
+
+	if offset == 0 {
+		return offset, bufferPtr
+	}
+
+	oneByte := make([]byte, 1)
+	_, err := file.ReadAt(oneByte, offset-1)
+	panicOnError(err)
+	if oneByte[0] == '\n' {
+		return offset, bufferPtr
+	}
+
+	newLineAt := int64(-1)
+	for i := bufferPtr; i < int64(len(buffer)); i++ {
+		if buffer[i] == '\n' {
+			newLineAt = i
+			break
+		}
+	}
+
+	if newLineAt == -1 {
+		return offset + int64(len(buffer)) - bufferPtr, int64(len(buffer))
+	}
+
+	return offset + newLineAt + 1 - bufferPtr, newLineAt + 1
 }

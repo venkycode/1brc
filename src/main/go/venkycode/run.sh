@@ -1,6 +1,6 @@
-#! /bin/bash
+#! /bin/zsh
 
 # Compile the code
 go build -o main
 
-time ./main -input '../../../../measurements.txt' -output './output.txt'
+time ./main -input '../../../../measurements.txt'
