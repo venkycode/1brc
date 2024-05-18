@@ -58,7 +58,7 @@ func main() {
 	outs := make([]string, 0, len(names))
 	for _, name := range names {
 		acc := globalAccumulators[name]
-		out := (name + "=" + strconv.FormatFloat(acc.sum/float64(acc.count), 'f', 1, 32) + "/" + strconv.FormatFloat(acc.min, 'f', 1, 32) + "/" + strconv.FormatFloat(acc.max, 'f', 1, 32))
+		out := (name + "=" + strconv.FormatFloat(acc.min, 'f', 1, 32) + "/" + strconv.FormatFloat(acc.sum/float64(acc.count), 'f', 1, 32) + "/" + strconv.FormatFloat(acc.max, 'f', 1, 32))
 		outs = append(outs, out)
 		println()
 	}

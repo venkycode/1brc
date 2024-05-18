@@ -2,13 +2,12 @@ package main
 
 import (
 	"os"
+	"runtime"
 	"sync"
 )
 
 const (
-	numChunks                    = 1024
-	accumulatorChannelBufferSize = 1000
-	maxMemory                    = 8 * 1024 * 1024 * 1024
+	AccumulatorChannelBufferSize = 1000
 )
 
 func processChunk(
@@ -64,16 +63,18 @@ func processFile(fileName string) <-chan *accumulator {
 	info, err := file.Stat()
 	panicOnError(err)
 
-	chunkSize := info.Size() / numChunks
-	numGoroutines := maxMemory / chunkSize
+	numGoroutines := runtime.NumCPU() * 3
+	numChunks := numGoroutines * 20
 
-	output := make(chan *accumulator, accumulatorChannelBufferSize)
+	chunkSize := info.Size() / int64(numChunks)
+
+	output := make(chan *accumulator, AccumulatorChannelBufferSize)
 
 	go func() {
 		wg := &sync.WaitGroup{}
 		// sema := semaphore.NewWeighted(numGoroutines)
 		sema := newSemaphore(int(numGoroutines))
-		for i := int64(0); i < numChunks; i++ {
+		for i := int64(0); i < int64(numChunks); i++ {
 			chunckStart := i * chunkSize
 			chunckEnd := min((i+1)*chunkSize, info.Size())
 			wg.Add(1)
