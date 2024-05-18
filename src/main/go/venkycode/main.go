@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime/pprof"
 	"sort"
 	"strconv"
 	"strings"
@@ -21,8 +22,19 @@ type accumulator struct {
 var globalAccumulators = make(map[string]*accumulator)
 
 func main() {
+	profile := flag.Bool("profile", false, "Profile file")
 	input := flag.String("input", "", "Input file")
 	flag.Parse()
+
+	if *profile {
+		f, err := os.Create("profile.out")
+		panicOnError(err)
+		defer f.Close()
+		if err := pprof.StartCPUProfile(f); err != nil {
+			panic(err)
+		}
+		defer pprof.StopCPUProfile()
+	}
 
 	inputFile, err := os.Open(*input)
 	panicOnError(err)
