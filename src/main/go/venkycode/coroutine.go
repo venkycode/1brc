@@ -13,7 +13,7 @@ const (
 func processChunk(
 	fileName string,
 	i, j int64,
-) map[string]*accumulator {
+) map[[150]byte]*accumulator {
 	file, err := os.Open(fileName)
 	panicOnError(err)
 	defer file.Close()
@@ -24,9 +24,9 @@ func processChunk(
 	panicOnError(err)
 	bufferPtr := int64(0)
 	i, bufferPtr = skipDirtyLine(file, i, buffer, bufferPtr)
-	var name string
-	var temperature float64
-	var accumulators = make(map[string]*accumulator)
+	var name [150]byte
+	var temperature int64
+	var accumulators = make(map[[150]byte]*accumulator)
 	for i < j {
 		name, temperature, i, bufferPtr = parseLine(file, i, buffer, bufferPtr)
 
