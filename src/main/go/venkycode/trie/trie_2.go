@@ -17,9 +17,9 @@ type node struct {
 
 func NewFlatTrie() *Trie {
 	t := &Trie{
-		store: make([]node, 1),
+		store: make([]node, 0, 1024),
 	}
-	t.store[0] = newFlatNode(0, nil)
+	t.store = append(t.store, newFlatNode(0, nil))
 
 	return t
 }
