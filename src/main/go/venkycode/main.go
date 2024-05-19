@@ -40,7 +40,7 @@ func main() {
 		globalAccumulator.Insert(chunkedAccumulator)
 	}
 
-	orderedOutput := make(chan *models.Accumulator, 1024)
+	orderedOutput := make(chan models.Accumulator, 1024)
 
 	go func() {
 		globalAccumulator.WalkInOrder(orderedOutput)

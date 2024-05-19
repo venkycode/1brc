@@ -40,7 +40,7 @@ func processChunk(
 	return accumulators
 }
 
-func processFile(fileName string) <-chan *models.Accumulator {
+func processFile(fileName string) <-chan models.Accumulator {
 	file, err := os.Open(fileName)
 	panicOnError(err)
 	defer file.Close()
@@ -53,7 +53,7 @@ func processFile(fileName string) <-chan *models.Accumulator {
 
 	chunkSize := info.Size() / int64(numChunks)
 
-	output := make(chan *models.Accumulator, AccumulatorChannelBufferSize)
+	output := make(chan models.Accumulator, AccumulatorChannelBufferSize)
 
 	go func() {
 		wg := &sync.WaitGroup{}

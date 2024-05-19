@@ -19,8 +19,8 @@ func (acc *Accumulator) Merge(in *Accumulator) {
 	}
 }
 
-func NewAccumulator(name [150]byte, temperature int64) *Accumulator {
-	return &Accumulator{
+func NewAccumulator(name [150]byte, temperature int64) Accumulator {
+	return Accumulator{
 		Name:  &name,
 		Sum:   temperature,
 		Count: 1,

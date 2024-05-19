@@ -11,8 +11,8 @@ func TestTrie(x *testing.T) {
 	t := NewTrie()
 
 	name := strToByteArray("Abha")
-
-	t.Insert(models.NewAccumulator(name, 100))
+	acc := models.NewAccumulator(name, 100)
+	t.Insert(&acc)
 	out := make(chan *models.Accumulator, 1024)
 	t.Walk(out)
 	close(out)

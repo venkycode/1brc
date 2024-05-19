@@ -24,25 +24,25 @@ func NewFlatTrie() *Trie {
 	return t
 }
 
-func (t *Trie) Insert(acc *models.Accumulator) {
+func (t *Trie) Insert(acc models.Accumulator) {
 	t.insert(0, acc.Name, acc, -1)
 }
 
-func (t *Trie) Walk(out chan<- *models.Accumulator) {
+func (t *Trie) Walk(out chan<- models.Accumulator) {
 	for _, n := range t.store {
 		if n.data != nil {
-			out <- n.data
+			out <- *n.data
 		}
 	}
 }
 
-func (t *Trie) WalkInOrder(out chan<- *models.Accumulator) {
+func (t *Trie) WalkInOrder(out chan<- models.Accumulator) {
 	t.walkInOrder(0, out)
 }
 
-func (t *Trie) walkInOrder(tindex int, out chan<- *models.Accumulator) {
+func (t *Trie) walkInOrder(tindex int, out chan<- models.Accumulator) {
 	if t.store[tindex].data != nil {
-		out <- t.store[tindex].data
+		out <- *t.store[tindex].data
 	}
 
 	for _, child := range t.store[tindex].children {
@@ -52,9 +52,9 @@ func (t *Trie) walkInOrder(tindex int, out chan<- *models.Accumulator) {
 	}
 }
 
-func (t *Trie) insert(tindex int, name *[150]byte, acc *models.Accumulator, sindex int) {
+func (t *Trie) insert(tindex int, name *[150]byte, acc models.Accumulator, sindex int) {
 	if sindex > -1 && name[sindex] == parser.CUSTOM_TERMINATOR { // complete
-		t.store[tindex].data.Merge(acc)
+		t.store[tindex].data.Merge(&acc)
 		return
 	}
 	sindex++
