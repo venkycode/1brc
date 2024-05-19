@@ -4,6 +4,10 @@ import (
 	"os"
 	"runtime"
 	"sync"
+
+	"github.com/venkycode/1brc/models"
+	"github.com/venkycode/1brc/parser"
+	"github.com/venkycode/1brc/trie"
 )
 
 const (
@@ -13,7 +17,7 @@ const (
 func processChunk(
 	fileName string,
 	i, j int64,
-) map[[150]byte]*accumulator {
+) *trie.Node {
 	file, err := os.Open(fileName)
 	panicOnError(err)
 	defer file.Close()
@@ -23,39 +27,20 @@ func processChunk(
 	_, err = file.ReadAt(buffer, i)
 	panicOnError(err)
 	bufferPtr := int64(0)
-	i, bufferPtr = skipDirtyLine(file, i, buffer, bufferPtr)
+	i, bufferPtr = parser.SkipDirtyLine(file, i, buffer, bufferPtr)
 	var name [150]byte
 	var temperature int64
-	var accumulators = make(map[[150]byte]*accumulator)
+	accumulators := trie.NewTrie()
 	for i < j {
-		name, temperature, i, bufferPtr = parseLine(file, i, buffer, bufferPtr)
+		name, temperature, i, bufferPtr = parser.ParseLine(file, i, buffer, bufferPtr)
 
-		acc, ok := accumulators[name]
-		if !ok {
-			acc = &accumulator{
-				name:  name,
-				sum:   temperature,
-				count: 1,
-				min:   temperature,
-				max:   temperature,
-			}
-			accumulators[name] = acc
-		} else {
-			acc.sum += temperature
-			acc.count++
-			if temperature < acc.min {
-				acc.min = temperature
-			}
-			if temperature > acc.max {
-				acc.max = temperature
-			}
-		}
+		accumulators.Insert(models.NewAccumulator(name, temperature))
 	}
 
 	return accumulators
 }
 
-func processFile(fileName string) <-chan *accumulator {
+func processFile(fileName string) <-chan *models.Accumulator {
 	file, err := os.Open(fileName)
 	panicOnError(err)
 	defer file.Close()
@@ -68,7 +53,7 @@ func processFile(fileName string) <-chan *accumulator {
 
 	chunkSize := info.Size() / int64(numChunks)
 
-	output := make(chan *accumulator, AccumulatorChannelBufferSize)
+	output := make(chan *models.Accumulator, AccumulatorChannelBufferSize)
 
 	go func() {
 		wg := &sync.WaitGroup{}
@@ -83,9 +68,7 @@ func processFile(fileName string) <-chan *accumulator {
 				defer wg.Done()
 				defer sema.release()
 				accumulators := processChunk(fileName, chunckStart, chunckEnd)
-				for _, acc := range accumulators {
-					output <- acc
-				}
+				accumulators.Walk(output)
 			}()
 		}
 		go func() {
