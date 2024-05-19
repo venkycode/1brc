@@ -17,7 +17,7 @@ const (
 func processChunk(
 	fileName string,
 	i, j int64,
-) *trie.Node {
+) *trie.Trie {
 	file, err := os.Open(fileName)
 	panicOnError(err)
 	defer file.Close()
@@ -30,7 +30,7 @@ func processChunk(
 	i, bufferPtr = parser.SkipDirtyLine(file, i, buffer, bufferPtr)
 	var name [150]byte
 	var temperature int64
-	accumulators := trie.NewTrie()
+	accumulators := trie.NewFlatTrie()
 	for i < j {
 		name, temperature, i, bufferPtr = parser.ParseLine(file, i, buffer, bufferPtr)
 

@@ -34,7 +34,7 @@ func main() {
 
 	chunkedAccumulators := processFile(*input)
 
-	globalAccumulator := trie.NewTrie()
+	globalAccumulator := trie.NewFlatTrie()
 
 	for chunkedAccumulator := range chunkedAccumulators {
 		globalAccumulator.Insert(chunkedAccumulator)
@@ -43,7 +43,7 @@ func main() {
 	orderedOutput := make(chan *models.Accumulator, 1024)
 
 	go func() {
-		globalAccumulator.Walk(orderedOutput)
+		globalAccumulator.WalkInOrder(orderedOutput)
 		close(orderedOutput)
 	}()
 
