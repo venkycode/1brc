@@ -12,12 +12,12 @@ type Trie struct {
 
 type node struct {
 	children [256]int
-	data     *models.Accumulator
+	data     models.Accumulator
 }
 
 func NewFlatTrie() *Trie {
 	t := &Trie{
-		store: make([]node, 0, 1024),
+		store: make([]node, 0, 10000),
 	}
 	t.store = append(t.store, newFlatNode(0, nil))
 
@@ -30,8 +30,8 @@ func (t *Trie) Insert(acc models.Accumulator) {
 
 func (t *Trie) Walk(out chan<- models.Accumulator) {
 	for _, n := range t.store {
-		if n.data != nil {
-			out <- *n.data
+		if n.data.Count != 0 {
+			out <- n.data
 		}
 	}
 }
@@ -41,8 +41,8 @@ func (t *Trie) WalkInOrder(out chan<- models.Accumulator) {
 }
 
 func (t *Trie) walkInOrder(tindex int, out chan<- models.Accumulator) {
-	if t.store[tindex].data != nil {
-		out <- *t.store[tindex].data
+	if t.store[tindex].data.Count != 0 {
+		out <- t.store[tindex].data
 	}
 
 	for _, child := range t.store[tindex].children {
@@ -71,7 +71,7 @@ func (t *Trie) insert(tindex int, name *[150]byte, acc models.Accumulator, sinde
 func newFlatNode(frag byte, name *[150]byte) node {
 	n := node{}
 	if frag == parser.CUSTOM_TERMINATOR {
-		n.data = &models.Accumulator{
+		n.data = models.Accumulator{
 			Name:  name,
 			Sum:   0,
 			Count: 0,
