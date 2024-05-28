@@ -1,6 +1,8 @@
 package trie
 
 import (
+	"sync"
+
 	"github.com/venkycode/1brc/models"
 	"github.com/venkycode/1brc/parser"
 )
@@ -8,11 +10,13 @@ import (
 // this trie will use slices instead of pointers
 type Trie struct {
 	store []node
+	mutex *sync.RWMutex
 }
 
 type node struct {
 	children [256]int
 	data     models.Accumulator
+	mutex    *sync.RWMutex
 }
 
 func NewFlatTrie() *Trie {
@@ -20,7 +24,7 @@ func NewFlatTrie() *Trie {
 		store: make([]node, 0, 10000),
 	}
 	t.store = append(t.store, newFlatNode(0, nil))
-
+	t.mutex = &sync.RWMutex{}
 	return t
 }
 
@@ -54,15 +58,28 @@ func (t *Trie) walkInOrder(tindex int, out chan<- models.Accumulator) {
 
 func (t *Trie) insert(tindex int, name *[150]byte, acc models.Accumulator, sindex int) {
 	if sindex > -1 && name[sindex] == parser.CUSTOM_TERMINATOR { // complete
+		t.store[tindex].mutex.Lock()
 		t.store[tindex].data.Merge(&acc)
+		t.store[tindex].mutex.Unlock()
 		return
 	}
 	sindex++
+	if sindex >= 150 {
+		println("sindex >= 150")
+		println(parser.ToString(name[:]))
+		return
+	}
+	t.store[tindex].mutex.Lock()
 	nextNodeIdx := t.store[tindex].children[name[sindex]]
 	if nextNodeIdx == 0 { // no node
+		t.mutex.Lock()
 		nextNodeIdx = len(t.store)
 		t.store[tindex].children[name[sindex]] = nextNodeIdx
 		t.store = append(t.store, newFlatNode(name[sindex], name))
+		t.mutex.Unlock()
+		t.store[tindex].mutex.Unlock()
+	} else {
+		t.store[tindex].mutex.Unlock()
 	}
 
 	t.insert(nextNodeIdx, name, acc, sindex)
@@ -79,5 +96,6 @@ func newFlatNode(frag byte, name *[150]byte) node {
 			Max:   -2000000,
 		}
 	}
+	n.mutex = &sync.RWMutex{}
 	return n
 }

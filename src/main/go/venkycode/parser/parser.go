@@ -73,12 +73,12 @@ func temperatureBToInt(temperatureB []byte) int64 {
 
 func readOneLineFrom(file *os.File, offset int64) (name [150]byte, temperature int64, newOffset int64) {
 	buffer := make([]byte, 400)
-	_, err := file.ReadAt(buffer, offset)
+	n, err := file.ReadAt(buffer, offset)
 	if err != nil && err != io.EOF {
 		panicOnError(err)
 	}
 
-	name, temperature, newOffset, _ = ParseLine(file, offset, buffer, 0)
+	name, temperature, newOffset, _ = ParseLine(file, offset, buffer[:n], 0)
 	return name, temperature, newOffset
 }
 

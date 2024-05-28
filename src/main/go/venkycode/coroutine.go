@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"runtime"
 	"sync"
@@ -11,7 +12,7 @@ import (
 )
 
 const (
-	AccumulatorChannelBufferSize = 1000
+	AccumulatorChannelBufferSize = 1000000
 )
 
 func processChunk(
@@ -28,14 +29,25 @@ func processChunk(
 	panicOnError(err)
 	bufferPtr := int64(0)
 	i, bufferPtr = parser.SkipDirtyLine(file, i, buffer, bufferPtr)
-	var name [150]byte
-	var temperature int64
-	accumulators := trie.NewFlatTrie()
-	for i < j {
-		name, temperature, i, bufferPtr = parser.ParseLine(file, i, buffer, bufferPtr)
 
-		accumulators.Insert(models.NewAccumulator(name, temperature))
+	accumulators := trie.NewFlatTrie()
+	wg := &sync.WaitGroup{}
+	sema := newSemaphore(1000)
+	for i < j {
+		var name [150]byte
+		var temperature int64
+		name, temperature, i, bufferPtr = parser.ParseLine(file, i, buffer, bufferPtr)
+		wg.Add(1)
+		sema.acquire()
+		go func() {
+			name := name
+			temperature := temperature
+			accumulators.Insert(models.NewAccumulator(name, temperature))
+			sema.release()
+			wg.Done()
+		}()
 	}
+	wg.Wait()
 
 	return accumulators
 }
@@ -67,8 +79,10 @@ func processFile(fileName string) <-chan models.Accumulator {
 			go func() {
 				defer wg.Done()
 				defer sema.release()
+				fmt.Println("Processing chunk", chunckStart, chunckEnd)
 				accumulators := processChunk(fileName, chunckStart, chunckEnd)
 				accumulators.Walk(output)
+				fmt.Println("Done processing chunk", chunckStart, chunckEnd)
 			}()
 		}
 		go func() {
