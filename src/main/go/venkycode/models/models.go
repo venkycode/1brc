@@ -8,23 +8,33 @@ type Accumulator struct {
 	Max   int64
 }
 
-func (acc *Accumulator) Merge(in *Accumulator) {
-	acc.Count += in.Count
-	acc.Sum += in.Sum
-	if acc.Min > in.Min {
-		acc.Min = in.Min
+func (a Accumulator) Merge(b Accumulator) Accumulator {
+	a.Sum += b.Sum
+	a.Count += b.Count
+	if a.Min > b.Min {
+		a.Min = b.Min
 	}
-	if acc.Max < in.Max {
-		acc.Max = in.Max
+	if a.Max < b.Max {
+		a.Max = b.Max
+	}
+	return a
+}
+
+func NewWithoutName(t int64) Accumulator {
+	return Accumulator{
+		Sum:   t,
+		Count: 1,
+		Min:   t,
+		Max:   t,
 	}
 }
 
-func NewAccumulator(name [150]byte, temperature int64) Accumulator {
+func New(name [150]byte, t int64) Accumulator {
 	return Accumulator{
 		Name:  name,
-		Sum:   temperature,
+		Sum:   t,
 		Count: 1,
-		Min:   temperature,
-		Max:   temperature,
+		Min:   t,
+		Max:   t,
 	}
 }

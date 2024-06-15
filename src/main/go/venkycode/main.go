@@ -37,7 +37,7 @@ func main() {
 	globalAccumulators := make(map[[150]byte]models.Accumulator)
 	for chunkedAccumulator := range chunkedAccumulators {
 		if existing, ok := globalAccumulators[chunkedAccumulator.Name]; ok {
-			existing.Merge(&chunkedAccumulator)
+			globalAccumulators[chunkedAccumulator.Name] = existing.Merge(chunkedAccumulator)
 		} else {
 			globalAccumulators[chunkedAccumulator.Name] = chunkedAccumulator
 		}

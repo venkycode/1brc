@@ -16,7 +16,7 @@ const (
 func processChunk(
 	fileName string,
 	i, j int64,
-) map[[150]byte]*models.Accumulator {
+) map[[150]byte]models.Accumulator {
 	file, err := os.Open(fileName)
 	panicOnError(err)
 	defer file.Close()
@@ -27,16 +27,15 @@ func processChunk(
 	panicOnError(err)
 	bufferPtr := int64(0)
 	i, bufferPtr = parser.SkipDirtyLine(file, i, buffer, bufferPtr)
-	out := make(map[[150]byte]*models.Accumulator)
+	out := make(map[[150]byte]models.Accumulator)
 	for i < j {
 		var name [150]byte
 		var temperature int64
 		name, temperature, i, bufferPtr = parser.ParseLine(file, i, buffer, bufferPtr)
-		acc := models.NewAccumulator(name, temperature)
 		if existing, ok := out[name]; ok {
-			existing.Merge(&acc)
+			out[name] = existing.Merge(models.NewWithoutName(temperature))
 		} else {
-			out[name] = &acc
+			out[name] = models.New(name, temperature)
 		}
 	}
 
@@ -72,7 +71,7 @@ func processFile(fileName string) <-chan models.Accumulator {
 				defer sema.release()
 				accumulators := processChunk(fileName, chunckStart, chunckEnd)
 				for _, acc := range accumulators {
-					output <- *acc
+					output <- acc
 				}
 			}()
 		}
