@@ -1,14 +1,12 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"runtime"
 	"sync"
 
 	"github.com/venkycode/1brc/models"
 	"github.com/venkycode/1brc/parser"
-	"github.com/venkycode/1brc/trie"
 )
 
 const (
@@ -18,7 +16,7 @@ const (
 func processChunk(
 	fileName string,
 	i, j int64,
-) *trie.Trie {
+) map[[150]byte]*models.Accumulator {
 	file, err := os.Open(fileName)
 	panicOnError(err)
 	defer file.Close()
@@ -29,27 +27,20 @@ func processChunk(
 	panicOnError(err)
 	bufferPtr := int64(0)
 	i, bufferPtr = parser.SkipDirtyLine(file, i, buffer, bufferPtr)
-
-	accumulators := trie.NewFlatTrie()
-	wg := &sync.WaitGroup{}
-	sema := newSemaphore(1000)
+	out := make(map[[150]byte]*models.Accumulator)
 	for i < j {
 		var name [150]byte
 		var temperature int64
 		name, temperature, i, bufferPtr = parser.ParseLine(file, i, buffer, bufferPtr)
-		wg.Add(1)
-		sema.acquire()
-		go func() {
-			name := name
-			temperature := temperature
-			accumulators.Insert(models.NewAccumulator(name, temperature))
-			sema.release()
-			wg.Done()
-		}()
+		acc := models.NewAccumulator(name, temperature)
+		if existing, ok := out[name]; ok {
+			existing.Merge(&acc)
+		} else {
+			out[name] = &acc
+		}
 	}
-	wg.Wait()
 
-	return accumulators
+	return out
 }
 
 func processFile(fileName string) <-chan models.Accumulator {
@@ -79,10 +70,10 @@ func processFile(fileName string) <-chan models.Accumulator {
 			go func() {
 				defer wg.Done()
 				defer sema.release()
-				fmt.Println("Processing chunk", chunckStart, chunckEnd)
 				accumulators := processChunk(fileName, chunckStart, chunckEnd)
-				accumulators.Walk(output)
-				fmt.Println("Done processing chunk", chunckStart, chunckEnd)
+				for _, acc := range accumulators {
+					output <- *acc
+				}
 			}()
 		}
 		go func() {

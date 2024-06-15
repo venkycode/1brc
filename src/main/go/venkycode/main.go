@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"os"
 	"runtime/pprof"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/venkycode/1brc/models"
 	"github.com/venkycode/1brc/parser"
-	"github.com/venkycode/1brc/trie"
 )
 
 func main() {
@@ -34,22 +34,41 @@ func main() {
 
 	chunkedAccumulators := processFile(*input)
 
-	globalAccumulator := trie.NewFlatTrie()
-
+	globalAccumulators := make(map[[150]byte]models.Accumulator)
 	for chunkedAccumulator := range chunkedAccumulators {
-		globalAccumulator.Insert(chunkedAccumulator)
+		if existing, ok := globalAccumulators[chunkedAccumulator.Name]; ok {
+			existing.Merge(&chunkedAccumulator)
+		} else {
+			globalAccumulators[chunkedAccumulator.Name] = chunkedAccumulator
+		}
 	}
-
-	orderedOutput := make(chan models.Accumulator, 1024)
-
-	go func() {
-		globalAccumulator.WalkInOrder(orderedOutput)
-		close(orderedOutput)
-	}()
 
 	results := []string{}
 
-	for acc := range orderedOutput {
+	globalAccumulatorsList := make([]models.Accumulator, 0, len(globalAccumulators))
+	for _, acc := range globalAccumulators {
+		globalAccumulatorsList = append(globalAccumulatorsList, acc)
+	}
+	sort.Slice(globalAccumulatorsList, func(i, j int) bool {
+		for k := 0; k < len(globalAccumulatorsList[i].Name); k++ {
+			if globalAccumulatorsList[i].Name[k] == parser.CUSTOM_TERMINATOR {
+				return true
+			}
+			if globalAccumulatorsList[j].Name[k] == parser.CUSTOM_TERMINATOR {
+				return false
+			}
+			if globalAccumulatorsList[i].Name[k] < globalAccumulatorsList[j].Name[k] {
+				return true
+			}
+			if globalAccumulatorsList[i].Name[k] > globalAccumulatorsList[j].Name[k] {
+				return false
+			}
+		}
+		return true
+
+	})
+
+	for _, acc := range globalAccumulatorsList {
 		min := float64(acc.Min) / 10.0
 		avg := (float64(acc.Sum) / float64(acc.Count)) / 10.0
 		max := float64(acc.Max) / 10.0
