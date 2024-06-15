@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	AccumulatorChannelBufferSize = 1000000
+	AccumulatorChannelBufferSize = 1000
 )
 
 func processChunk(
