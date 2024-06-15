@@ -1,4 +1,4 @@
-package main
+package parser
 
 import (
 	"io"
@@ -12,7 +12,7 @@ const (
 )
 
 // todo pass struct to functions
-func parseLine(file *os.File, offset int64, buffer []byte, bufferPtr int64) (name [150]byte, temperature int64, newOffset int64, newBufferPtr int64) {
+func ParseLine(file *os.File, offset int64, buffer []byte, bufferPtr int64) (name [150]byte, temperature int64, newOffset int64, newBufferPtr int64) {
 	semicolonAt := int64(-1)
 	newBufferPtr = bufferPtr
 	newOffset = offset
@@ -64,7 +64,7 @@ func temperatureBToInt(temperatureB []byte) int64 {
 		}
 		temperature = temperature*10 + int64(temperatureB[i]-ZERO)
 	}
-	if minus {
+	if minus { // do bit math
 		temperature = -temperature
 	}
 	return temperature
@@ -73,16 +73,16 @@ func temperatureBToInt(temperatureB []byte) int64 {
 
 func readOneLineFrom(file *os.File, offset int64) (name [150]byte, temperature int64, newOffset int64) {
 	buffer := make([]byte, 400)
-	_, err := file.ReadAt(buffer, offset)
+	n, err := file.ReadAt(buffer, offset)
 	if err != nil && err != io.EOF {
 		panicOnError(err)
 	}
 
-	name, temperature, newOffset, _ = parseLine(file, offset, buffer, 0)
+	name, temperature, newOffset, _ = ParseLine(file, offset, buffer[:n], 0)
 	return name, temperature, newOffset
 }
 
-func skipDirtyLine(file *os.File, offset int64, buffer []byte, bufferPtr int64) (newOffset int64, newBufferPtr int64) {
+func SkipDirtyLine(file *os.File, offset int64, buffer []byte, bufferPtr int64) (newOffset int64, newBufferPtr int64) {
 
 	if offset == 0 {
 		return offset, bufferPtr
@@ -108,4 +108,21 @@ func skipDirtyLine(file *os.File, offset int64, buffer []byte, bufferPtr int64) 
 	}
 
 	return offset + newLineAt + 1 - bufferPtr, newLineAt + 1
+}
+
+func ToString(b []byte) string {
+	newBytes := make([]byte, 0, len(b))
+	for _, c := range b {
+		if c == CUSTOM_TERMINATOR {
+			break
+		}
+		newBytes = append(newBytes, c)
+	}
+	return string(newBytes)
+}
+
+func panicOnError(err error) {
+	if err != nil {
+		panic(err)
+	}
 }
